@@ -21,14 +21,24 @@ console.log("From path: " + fromPath);
 // Create an Openchain client and signer 
 var client = new openchain.ApiClient("https://demo.openchain.io/");
 var signer = new openchain.MutationSigner(privateKey);
- 
+var amount = null;
+
 // Initialize the client 
 client.initialize().then(function () {
     
     client.getAccountRecord(fromPath, sourceAssetPath).then(function(result) {
-        var amount = result.balance;
+        amount = result.balance;
         console.log("Balance: " + amount.toString());
-        
+
+        return client.getTransaction(result.version);
+    })
+    .then(function (transaction) {
+        var routingTo = JSON.parse(openchain.encoding.decodeString(transaction.mutation.metadata)).routing;
+        console.log("Routing to: " + routingTo);
+
+        return routingTo;
+    })
+    .then(function (routingTo) {
         return new openchain.TransactionBuilder(client)
             // Add the key to the transaction builder 
             .addSigningKey(signer)
@@ -40,10 +50,10 @@ client.initialize().then(function () {
             }).then (function (transactionBuilder) {
                 return transactionBuilder.updateAccountRecord(issuancePath, assetPath, -amount);
             }).then (function (transactionBuilder) {
-                return transactionBuilder.updateAccountRecord(issuedPath, assetPath, amount);
+                return transactionBuilder.updateAccountRecord(routingTo, assetPath, amount);
             }).then (function (transactionBuilder) {
                 return transactionBuilder.submit();
             })
-            .then(function (result) { console.log(result); }, function (result) { console.error(result); }); 
-    });
+            .then(function (result) { console.log(result); }, function (result) { console.error(result); });
+    }, function (result) { console.error(result); });
 });
